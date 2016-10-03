@@ -5,10 +5,91 @@ import sys
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
+import pyximport; pyximport.install()
+import nes
+
+class BitmakerMemoryBlock:
+    def __init__(self, size, auto_expand=False):
+        self.b = bytearray(size)
+    def ensureSize(self, size):
+        if len(self.b) < size:
+            old_b = self.b
+            self.b = bytearray(size)
+            self.b[0:len(old_b)] = old_b
+
+class Packed8bpp8x8Tile:
+    "SNES (Mode 7) and GBA graphics"
+    def __init__(self, mem, offset):
+        self.mem = mem
+        self.offset = offset
+        self.mem.ensureSize(offset+64)
+    def setPixel(self, x, y, value):
+        value = int(value) & 255
+        x = int(x) & 7
+        y = int(y) & 7
+        self.mem.b[self.offset + y*8 + x] = value
+    def copyFrom(self, other):
+        for b in range(0, 63):
+            self.mem[self.offset + b] = other.mem[other.offset + b]
+        
+class Packed4bpp8x8Tile:
+    "Mega Drive graphics"
+    def __init__(self, mem, offset):
+        self.mem = mem
+        self.offset = offset
+        self.mem.ensureSize(offset+32)
+    def setPixel(self, x, y, value):
+        value = int(value) & 15
+        x = int(x) & 7
+        y = int(y) & 7
+        b = self.mem.b[self.offset + y*4 + (x >> 1)]
+        if x & 1:
+            b = b & 0xf0 + value
+        else:
+            b = b & 0x0f + value << 4
+        self.mem.b[self.offset + y*4 + (x >> 1)] = b
+    def copyFrom(self, other):
+        for b in range(0, 31):
+            self.mem[self.offset + b] = other.mem[other.offset + b]
+
+class Planar4bpp8x8TileLSB:
+    "SNES and Master System"
+    def __init__(self, mem, mem_offset):
+        self.mem = mem
+        self.offset = offset
+        self.mem.ensureSize(offset+32)
+    def setPixel(self, x, y, value):
+        value = int(value) & 15
+        x = 7-(int(x) & 7)
+        y = int(y) & 7
+        for bx in [0, 1, 2, 3]:
+            b = self.mem.b[self.offset + y*4 + bx]
+            self.mem.b[self.offset + y*4 + bx] = b & ~(1<<x) | ((1<<x) if value & (1<<bx) else 0)
+    def copyFrom(self, other):
+        for b in range(0, 31):
+            self.mem[self.offset + b] = other.mem[other.offset + b]
+
+class Planar2bpp8x8TileLSB:
+    "SNES and NES"
+    def __init__(self, mem, mem_offset):
+        self.mem = mem
+        self.offset = offset
+        self.mem.ensureSize(offset+16)
+    def setPixel(self, x, y, value):
+        value = int(value) & 3
+        x = 7-(int(x) & 7)
+        y = int(y) & 7
+        for bx in [0, 1]:
+            b = self.mem[self.offset + y*2 + bx]
+            self.mem[self.offset + y*2 + bx] = b & ~(1<<x) | ((1<<x) if value & (1<<bx) else 0)
+    def copyFrom(self, other):
+        for b in range(0, 15):
+            self.mem[self.offset + b] = other.mem[other.offset + b]
 
 
-class BitmakerApplication(QApplication):
-    pass
+class BitmakerPaletteItem(QGraphicsItem):
+    def __init__(self):
+        super(BitmakerPaletteItem, self).__init__()
 
 class BitmakerPaletteWidget(QGraphicsScene):
     pass
@@ -30,11 +111,14 @@ class BitmakerLibrary(QTreeWidgetItem):
         self.name = new_name
         self.setText(new_name)
 
-class BitmakerRasterizer(QPixmap):
+class BitmakerRasterizerPreview(QPixmap):
     def __init__(self, width, height):
-        super(BitmakerRasterizer, self).__init__()
-    def paint(self, painter, option, widget):
+        super(BitmakerRasterizer, self).__init__(QSize(width, height))
+        self.width = width
+        self.height = height
+    def makeScreen(self):
         pass
+
 class BitmakerScene(QGraphicsItem):
     def __init__(self):
         super(BitmakerScene, self).__init__()
