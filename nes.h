@@ -6,7 +6,10 @@
 class CPU_2A03
 {
 public:
-    CPU_2A03();
+    CPU_2A03() {
+
+    }
+
     uint8_t A, P, X, Y, S, CYC;
     union {
         uint16_t PC;
@@ -92,12 +95,12 @@ public:
     const uint64_t sig_0_V      = 0x0000000000000004ll;
     const uint64_t sig_DB7_N    = 0x0000000000000002ll;
 
-#define C(ones,zeroes,g,clk) \
-    (ones<<24 | zeroes<<16 | \
+#define C(ones,zeroes,g,t) \
+    (ones<<20 | zeroes<<12 | \
     (g==1?0x800:(g==2?0x400:(g==3?0x200:0))) | \
-    (clk==0?0x100:(clk==1?0x80:(clk==2?0x40:(clk==3?0x20:(clk==4?0x10:(clk==5?8:0)))))))
+    (t==0?0x100:(t==1?0x80:(t==2?0x40:(t==3?0x20:(t==4?0x10:(t==5?8:0)))))))
 
-    constexpr uint32_t decode_rom[130] = {
+    static constexpr uint32_t decode_rom[130] = {
         C(0b10000100, 0b01100000, 3, 9), // 002: STY
         C(0b00010000, 0b00001100, 1, 3), // 003: T3INDYA
         C(0b00011000, 0b00000100, 1, 2), // 004: T2ABSY
@@ -229,7 +232,7 @@ public:
         C(0b00000000, 0b10000000, 0, 9), // 130: NI7P
         C(0b00000000, 0b01000000, 0, 9), // 131: NI6P
     };
-#undef C()
+#undef C
 
     template <uint64_t decode>
     inline void inner_signals() {
@@ -244,9 +247,9 @@ public:
         if(decode & sig_DL_DB) {_DB &= _DL; }
         if(decode & sig_DL_ADL) { _ADL &= _DL; }
         if(decode & sig_DL_ADH) { _ADH &= _DL; }
-        if(decode & sig_0_ADH == sig_0_ADH) { _ADH = 0; }
-        if(decode & sig_0_ADH == sig_0_ADH0) { _ADH &= 254; }
-        if(decode & sig_0_ADH == sig_0_ADH1_7) { _ADH &= 1; }
+        if((decode & sig_0_ADH) == sig_0_ADH) { _ADH = 0; }
+        if((decode & sig_0_ADH) == sig_0_ADH0) { _ADH &= 254; }
+        if((decode & sig_0_ADH) == sig_0_ADH1_7) { _ADH &= 1; }
         if(decode & sig_ADH_ABH) { ABH = _ADH; }
         if(decode & sig_ADL_ABL) { ABL = _ADL; }
         if(decode & sig_PCL_PCL) { _PCLS = PCL; }
@@ -263,13 +266,13 @@ public:
         if(decode & sig_PCH_ADH) { _ADH &= PCH; }
         if(decode & sig_SB_ADH) { _ADH &= _SB; _SB = _ADH; }
         if(decode & sig_SB_DB) { _SB &= _DB; _DB = _SB; }
-        if(decode & sig_0_ADL2_0 == sig_0_ADL2_0) { _ADL &= 0xf8; }
-        if(decode & sig_0_ADL2_0 == sig_0_ADL2 | sig_0_ADL1) { _ADL &= 0xf9; }
-        if(decode & sig_0_ADL2_0 == sig_0_ADL2 | sig_0_ADL0) { _ADL &= 0xfa; }
-        if(decode & sig_0_ADL2_0 == sig_0_ADL2) { _ADL &= 0xfb; }
-        if(decode & sig_0_ADL2_0 == sig_0_ADL1 | sig_0_ADL0) { _ADL &= 0xfc; }
-        if(decode & sig_0_ADL2_0 == sig_0_ADL1) { _ADL &= 0xfd; }
-        if(decode & sig_0_ADL2_0 == sig_0_ADL0) { _ADL &= 0xfe; }
+        if((decode & sig_0_ADL2_0) == sig_0_ADL2_0) { _ADL &= 0xf8; }
+        if((decode & sig_0_ADL2_0) == (sig_0_ADL2 | sig_0_ADL1)) { _ADL &= 0xf9; }
+        if((decode & sig_0_ADL2_0) == (sig_0_ADL2 | sig_0_ADL0)) { _ADL &= 0xfa; }
+        if((decode & sig_0_ADL2_0) == sig_0_ADL2) { _ADL &= 0xfb; }
+        if((decode & sig_0_ADL2_0) == (sig_0_ADL1 | sig_0_ADL0)) { _ADL &= 0xfc; }
+        if((decode & sig_0_ADL2_0) == sig_0_ADL1) { _ADL &= 0xfd; }
+        if((decode & sig_0_ADL2_0) == sig_0_ADL0) { _ADL &= 0xfe; }
         if(decode & sig_S_ADL) { _ADL &= S; }
         if(decode & sig_SB_S) { S = _SB; }
         //if(decode & sig_S_S) { S = S; } // (recirculate stack pointer)
@@ -284,7 +287,7 @@ public:
             _CD = _BI + _AI + _ADDC;
             _HC = (_BI&15 + _AI&15 + _ADDC) > 15? 1 : 0;
             _ACR = _CD > 255 ? 1 : 0;
-            _AVR = (!(!(!(_BI|_AI&128) && carry6)|(!(!(_BI&_AI&128) || carry6))))?1:0;
+            _AVR = (!(!(!((_BI|_AI)&128) && carry6)|(!(!(_BI&_AI&128) || carry6))))?1:0;
         }
         if(decode & sig_ANDS) { _CD = _BI&_AI; _HC = _ACR = _AVR = 0; }
         if(decode & sig_EORS) { _CD = _BI|_AI; _HC = _ACR = _AVR = 0; }
@@ -296,9 +299,9 @@ public:
             _AVR = 0;
         }
         if(decode & sig_ADD_ADL) { _ADL &= _ADD; }
-        if(decode & sig_ADD_SB == sig_ADD_SB) { _SB &= _ADD; }
-        if(decode & sig_ADD_SB == sig_ADD_SB0_6) { _SB &= 128 | _ADD&127; }
-        if(decode & sig_ADD_SB == sig_ADD_SB7) { _SB &= 127 | _ADD&128; }
+        if((decode & sig_ADD_SB) == sig_ADD_SB) { _SB &= _ADD; }
+        if((decode & sig_ADD_SB) == sig_ADD_SB0_6) { _SB &= 128 | (_ADD&127); }
+        if((decode & sig_ADD_SB) == sig_ADD_SB7) { _SB &= 127 | (_ADD&128); }
         if(decode & sig_0_ADD) { _ADD = 0; }
         if(decode & sig_SB_ADD) { _ADD = _SB; }
         if(decode & sig_SB_AC) { A = _SB; }
@@ -309,20 +312,20 @@ public:
         if(decode & sig_SB_Y) { Y = _SB; }
         if(decode & sig_Y_SB) { _SB &= Y; }
         if(decode & sig_P_DB) { _DB &= P; }
-        if(decode & sig_DB0_C) { P &= 254 | _DB&1; }
+        if(decode & sig_DB0_C) { P &= 254 | (_DB&1); }
         if(decode & sig_IR5_C) { P &= 254 | (_IR&16?1:0); }
         if(decode & sig_ACR_C) { P &= 254 | _ACR; }
-        if(decode & sig_DB1_Z) { P &= 253 | _DB&2; }
+        if(decode & sig_DB1_Z) { P &= 253 | (_DB&2); }
         if(decode & sig_DBZ_Z) { P &= 253 | (_DB?0:2); }
-        if(decode & sig_DB2_I) { P &= 251 | _DB&4; }
+        if(decode & sig_DB2_I) { P &= 251 | (_DB&4); }
         if(decode & sig_IR5_I) { P &= 251 | (_IR&16?4:0); }
-        if(decode & sig_DB3_D) { P &= 247 | _DB&8; }
+        if(decode & sig_DB3_D) { P &= 247 | (_DB&8); }
         if(decode & sig_IR5_D) { P &= 247 | (_IR&16?8:0); }
-        if(decode & sig_DB6_V) { P &= 191 | _DB&64; }
+        if(decode & sig_DB6_V) { P &= 191 | (_DB&64); }
         if(decode & sig_AVR_V) { P &= 191 | _AVR*64; }
         if(decode & sig_1_V)   { P |= 64; }
         if(decode & sig_0_V)   { P &= 191; }
-        if(decode & sig_DB7_N) { P &= 127 | _DB&128; }
+        if(decode & sig_DB7_N) { P &= 127 | (_DB&128); }
     }
 
 
@@ -331,26 +334,9 @@ public:
 
 class PPU {
 public:
-    static constexpr uint32_t paletteNTSC[64] = {
-        0x7c7c7c, 0x0000fc, 0x0000bc, 0x4428bc,
-        0x940084, 0xa80020, 0xa81000, 0x881400,
-        0x503000, 0x007800, 0x006800, 0x005800,
-        0x004058, 0x000000, 0x000000, 0x000000,
-        0xbcbcbc, 0x0078f8, 0x0058f8, 0x6844fc,
-        0xd800fc, 0xe40058, 0xf83800, 0xe45c10,
-        0xac7c00, 0x00b800, 0x00a800, 0x00a844,
-        0x008888, 0x000000, 0x000000, 0x000000,
-        0xf8f8f8, 0x3cbcfc, 0x6888fc, 0x9878f8,
-        0xf878f8, 0xf85898, 0xf87858, 0xfca044,
-        0xf8b800, 0xb8f818, 0x58d854, 0x58f898,
-        0x00e8d8, 0x787878, 0x000000, 0x000000,
-        0xfcfcfc, 0xa4e4fc, 0xb8b8f8, 0xd8b8f8,
-        0xf8b8f8, 0xf8a4c0, 0xf0d0b0, 0xfce0a8,
-        0xf8d878, 0xd8f878, 0xb8f8b8, 0xb8f8d8,
-        0x00fcfc, 0xf8d8f8, 0x000000, 0x000000
-    };
+    static const uint32_t paletteNTSC[64];
 
-    uint32_t *palette;
+    uint32_t const *palette;
     uint8_t PPUCTRL, PPUMASK, OAMADDR;
     uint8_t bgscroll_x, bgscroll_y, line_counter, line_sprite_counter;
     bool sprite0, spritelimit;
