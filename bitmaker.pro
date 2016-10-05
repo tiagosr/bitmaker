@@ -14,9 +14,10 @@ TEMPLATE = app
 
 SOURCES += main.cpp\
         mainwindow.cpp \
-    nes.cpp
+    emulatorview.cpp
 
 HEADERS  += mainwindow.h \
-    nes.h
+    libretro.h \
+    emulatorview.h
 
 FORMS    += mainwindow.ui
